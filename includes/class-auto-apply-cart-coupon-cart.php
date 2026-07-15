@@ -45,7 +45,7 @@ class Auto_Apply_Cart_Coupon_Cart {
 	 * @return void
 	 */
 	public function apply_auto_coupons() {
-		if ( is_admin() && ! wp_doing_ajax() ) {
+		if ( $this->should_skip_auto_apply() ) {
 			return;
 		}
 
@@ -64,6 +64,50 @@ class Auto_Apply_Cart_Coupon_Cart {
 				WC()->cart->apply_coupon( $code );
 			}
 		}
+	}
+
+	/**
+	 * Whether auto-apply should be skipped for the current request.
+	 *
+	 * Admin AJAX and storefront add-to-cart both set is_admin() + wp_doing_ajax().
+	 * Requests that originated from wp-admin (e.g. order/subscription item editors)
+	 * must never re-trigger auto-apply coupons into temporary cart rebuilds.
+	 *
+	 * @return bool
+	 */
+	private function should_skip_auto_apply() {
+		// Skip non-AJAX admin screens.
+		if ( is_admin() && ! wp_doing_ajax() ) {
+			return true;
+		}
+
+		// Skip AJAX that was initiated from any wp-admin screen.
+		if ( $this->request_originated_from_admin() ) {
+			return true;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Detect requests that started from wp-admin via HTTP referer.
+	 *
+	 * @return bool
+	 */
+	private function request_originated_from_admin() {
+		$referer = wp_get_referer();
+
+		if ( ! $referer ) {
+			$referer = wp_get_raw_referer();
+		}
+
+		if ( ! $referer ) {
+			return false;
+		}
+
+		$admin_url = admin_url();
+
+		return 0 === strpos( $referer, $admin_url );
 	}
 
 	/**

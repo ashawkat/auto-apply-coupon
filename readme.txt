@@ -4,7 +4,7 @@ Tags: coupon, auto apply, cart, discount, automatic coupon
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 1.0.1
 WC requires at least: 7.0
 WC tested up to: 9.6
 License: GPLv3 or later
@@ -80,6 +80,9 @@ Yes. The plugin declares compatibility with WooCommerce custom order tables.
 
 == Changelog ==
 
+= 1.0.1 =
+* Fixed: Skip auto-apply when add-to-cart is triggered from wp-admin AJAX (e.g. order/subscription item editors), so backend cart rebuilds no longer re-apply coupons
+
 = 1.0.0 =
 * Initial release
 * Auto Apply Coupon checkbox on coupon edit screen
@@ -88,6 +91,9 @@ Yes. The plugin declares compatibility with WooCommerce custom order tables.
 * Settings link on the Plugins page
 
 == Upgrade Notice ==
+
+= 1.0.1 =
+Recommended update — prevents auto-apply coupons from firing during admin order/subscription item edits.
 
 = 1.0.0 =
 Initial release.

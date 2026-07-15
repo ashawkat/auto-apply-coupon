@@ -98,6 +98,9 @@ Yes. The plugin declares compatibility with WooCommerce custom order tables.
 
 ## Changelog
 
+### 1.0.1
+- Fixed: Skip auto-apply when add-to-cart is triggered from wp-admin AJAX (e.g. order/subscription item editors)
+
 ### 1.0.0
 - Initial release
 
