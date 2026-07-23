@@ -9,6 +9,7 @@ Built by [Betatech](https://betatech.co/).
 ## Features
 
 - **Auto Apply Coupon** checkbox on each coupon edit screen
+- **First Month Only** checkbox for subscription purchases (requires WooCommerce Subscriptions)
 - Applies enabled coupons automatically when a product is added to the cart
 - Avoids duplicate application if the coupon is already active
 - Caches auto-apply coupon codes for performance
@@ -47,10 +48,13 @@ Built by [Betatech](https://betatech.co/).
 ## Usage
 
 1. Create or edit a coupon in WooCommerce
-2. Check **Auto Apply Coupon**
-3. Save the coupon
+2. Check **Auto Apply Coupon** (optional) to apply it automatically on add to cart
+3. Check **First Month Only** if the coupon should discount only the first subscription payment (not renewals)
+4. Save the coupon
 
-When a shopper adds any product to their cart, the coupon is applied automatically (as long as WooCommerce coupon rules allow it).
+When a shopper adds any product to their cart, auto-apply coupons are applied automatically (as long as WooCommerce coupon rules allow it).
+
+With **First Month Only** enabled and WooCommerce Subscriptions active, the coupon discounts the initial subscription payment only and is blocked on renewals.
 
 You can also click **Settings** on the plugin row under **Plugins** to jump straight to the coupons list.
 
@@ -66,7 +70,8 @@ auto-apply-cart-coupon/
 ├── includes/
 │   ├── class-auto-apply-cart-coupon.php
 │   ├── class-auto-apply-cart-coupon-admin.php
-│   └── class-auto-apply-cart-coupon-cart.php
+│   ├── class-auto-apply-cart-coupon-cart.php
+│   └── class-auto-apply-cart-coupon-subscriptions.php
 ├── uninstall.php
 ├── readme.txt
 └── README.md
@@ -76,9 +81,12 @@ auto-apply-cart-coupon/
 
 | Hook | Purpose |
 |------|---------|
-| `woocommerce_coupon_options` | Renders the Auto Apply checkbox |
-| `woocommerce_coupon_options_save` | Saves the checkbox value |
+| `woocommerce_coupon_options` | Renders Auto Apply and First Month Only checkboxes |
+| `woocommerce_coupon_options_save` | Saves checkbox values |
 | `woocommerce_add_to_cart` | Applies auto-apply coupons |
+| `woocommerce_before_calculate_totals` | Removes first-month-only coupons from recurring totals |
+| `woocommerce_coupon_is_valid` | Blocks first-month-only coupons on renewals |
+| `woocommerce_subscription_payment_complete` | Removes first-month-only coupons after initial payment |
 | `before_woocommerce_init` | Declares HPOS compatibility |
 
 ---
@@ -94,9 +102,15 @@ Yes. Every coupon with auto apply enabled will be attempted when a product is ad
 **Is HPOS supported?**  
 Yes. The plugin declares compatibility with WooCommerce custom order tables.
 
+**What does First Month Only do?**  
+With WooCommerce Subscriptions active, it limits the coupon to the first subscription payment so renewals are charged at full price.
+
 ---
 
 ## Changelog
+
+### 1.1.0
+- Added: First Month Only option for subscription purchases
 
 ### 1.0.1
 - Fixed: Skip auto-apply when add-to-cart is triggered from wp-admin AJAX (e.g. order/subscription item editors)

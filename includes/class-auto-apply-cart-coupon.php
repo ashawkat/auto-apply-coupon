@@ -35,6 +35,11 @@ final class Auto_Apply_Cart_Coupon {
 	const LEGACY_META_KEY = '_wc_auto_apply_coupon';
 
 	/**
+	 * Coupon meta key for first-month-only (subscriptions) setting.
+	 */
+	const FIRST_MONTH_META_KEY = '_aacc_first_month_only';
+
+	/**
 	 * Get plugin instance.
 	 *
 	 * @return Auto_Apply_Cart_Coupon
@@ -73,6 +78,11 @@ final class Auto_Apply_Cart_Coupon {
 
 		Auto_Apply_Cart_Coupon_Admin::instance();
 		Auto_Apply_Cart_Coupon_Cart::instance();
+
+		if ( class_exists( 'WC_Subscriptions' ) || class_exists( 'WC_Subscriptions_Core_Plugin' ) ) {
+			require_once AACC_PATH . 'includes/class-auto-apply-cart-coupon-subscriptions.php';
+			Auto_Apply_Cart_Coupon_Subscriptions::instance();
+		}
 	}
 
 	/**
@@ -137,5 +147,15 @@ final class Auto_Apply_Cart_Coupon {
 		}
 
 		return 'no';
+	}
+
+	/**
+	 * Read the first-month-only setting for subscription purchases.
+	 *
+	 * @param WC_Coupon $coupon Coupon object.
+	 * @return string
+	 */
+	public static function get_first_month_only_value( $coupon ) {
+		return 'yes' === $coupon->get_meta( self::FIRST_MONTH_META_KEY, true ) ? 'yes' : 'no';
 	}
 }

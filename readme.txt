@@ -4,7 +4,7 @@ Tags: coupon, auto apply, cart, discount, automatic coupon
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.0.1
+Stable tag: 1.1.0
 WC requires at least: 7.0
 WC tested up to: 9.6
 License: GPLv3 or later
@@ -21,6 +21,7 @@ This plugin requires **WooCommerce** to be installed and active.
 ### Key Features
 
 * Adds an **Auto Apply Coupon** option on the coupon edit screen
+* Adds a **First Month Only** option for subscription purchases (requires WooCommerce Subscriptions)
 * Applies selected coupons automatically on `add to cart`
 * Skips coupons that are already applied to the cart
 * Caches auto-apply coupon codes for better performance
@@ -73,12 +74,19 @@ Yes. All coupons marked for auto apply will be applied when a product is added t
 
 Yes. The plugin declares compatibility with WooCommerce custom order tables.
 
+= What does First Month Only do? =
+
+When enabled, the coupon discounts only the first payment of a subscription and will not apply to renewals. This requires WooCommerce Subscriptions.
+
 == Screenshots ==
 
 1. Auto Apply Coupon checkbox on the coupon edit screen
 2. Coupon applied automatically after adding a product to the cart
 
 == Changelog ==
+
+= 1.1.0 =
+* Added: First Month Only option on coupons — limits the discount to the first subscription payment (not renewals)
 
 = 1.0.1 =
 * Fixed: Skip auto-apply when add-to-cart is triggered from wp-admin AJAX (e.g. order/subscription item editors), so backend cart rebuilds no longer re-apply coupons
@@ -91,6 +99,9 @@ Yes. The plugin declares compatibility with WooCommerce custom order tables.
 * Settings link on the Plugins page
 
 == Upgrade Notice ==
+
+= 1.1.0 =
+Adds a First Month Only option for subscription coupon purchases.
 
 = 1.0.1 =
 Recommended update — prevents auto-apply coupons from firing during admin order/subscription item edits.
