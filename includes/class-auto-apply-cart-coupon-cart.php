@@ -20,6 +20,13 @@ class Auto_Apply_Cart_Coupon_Cart {
 	private static $instance = null;
 
 	/**
+	 * Whether a sync is already in progress (prevents recursion).
+	 *
+	 * @var bool
+	 */
+	private $is_syncing = false;
+
+	/**
 	 * Get plugin instance.
 	 *
 	 * @return Auto_Apply_Cart_Coupon_Cart
@@ -36,16 +43,24 @@ class Auto_Apply_Cart_Coupon_Cart {
 	 * Constructor.
 	 */
 	private function __construct() {
-		add_action( 'woocommerce_add_to_cart', array( $this, 'apply_auto_coupons' ), 10, 0 );
+		add_action( 'woocommerce_add_to_cart', array( $this, 'sync_auto_coupons' ), 20 );
+		add_action( 'woocommerce_after_cart_item_quantity_update', array( $this, 'sync_auto_coupons' ), 20 );
+		add_action( 'woocommerce_cart_item_removed', array( $this, 'sync_auto_coupons' ), 20 );
+		add_action( 'woocommerce_cart_item_restored', array( $this, 'sync_auto_coupons' ), 20 );
+		add_action( 'woocommerce_cart_loaded_from_session', array( $this, 'sync_auto_coupons' ), 20 );
 	}
 
 	/**
-	 * Apply auto-apply coupons when an item is added to the cart.
+	 * Sync auto-apply coupons with the current cart.
+	 *
+	 * Applies coupons only when WooCommerce usage restrictions pass
+	 * (products, categories, min/max spend, sale items, etc.) and removes
+	 * previously auto-applied coupons that are no longer valid.
 	 *
 	 * @return void
 	 */
-	public function apply_auto_coupons() {
-		if ( $this->should_skip_auto_apply() ) {
+	public function sync_auto_coupons() {
+		if ( $this->is_syncing || $this->should_skip_auto_apply() ) {
 			return;
 		}
 
@@ -59,11 +74,112 @@ class Auto_Apply_Cart_Coupon_Cart {
 			return;
 		}
 
-		foreach ( $auto_coupons as $code ) {
-			if ( ! WC()->cart->has_discount( $code ) ) {
-				WC()->cart->apply_coupon( $code );
+		$this->is_syncing = true;
+
+		$auto_codes_normalized = array_map( 'wc_format_coupon_code', $auto_coupons );
+
+		// Remove auto-apply coupons that no longer meet usage restrictions.
+		foreach ( WC()->cart->get_applied_coupons() as $applied_code ) {
+			if ( ! in_array( wc_format_coupon_code( $applied_code ), $auto_codes_normalized, true ) ) {
+				continue;
+			}
+
+			if ( WC()->cart->is_empty() || ! $this->coupon_is_valid_for_cart( $applied_code ) ) {
+				$this->remove_coupon_quietly( $applied_code );
 			}
 		}
+
+		// Apply eligible auto-apply coupons that pass all WooCommerce restrictions.
+		if ( ! WC()->cart->is_empty() ) {
+			foreach ( $auto_coupons as $code ) {
+				if ( WC()->cart->has_discount( $code ) ) {
+					continue;
+				}
+
+				if ( ! $this->coupon_is_valid_for_cart( $code ) ) {
+					continue;
+				}
+
+				$this->apply_coupon_quietly( $code );
+			}
+		}
+
+		$this->is_syncing = false;
+	}
+
+	/**
+	 * Check whether a coupon is valid for the current cart.
+	 *
+	 * Uses WooCommerce's own coupon validation so product restrictions,
+	 * minimum spend, maximum spend, excluded products/categories, sale
+	 * item rules, usage limits, and expiry dates are all respected.
+	 *
+	 * @param string $code Coupon code.
+	 * @return bool
+	 */
+	private function coupon_is_valid_for_cart( $code ) {
+		$coupon = new WC_Coupon( $code );
+
+		if ( ! $coupon->get_id() ) {
+			return false;
+		}
+
+		return (bool) $coupon->is_valid();
+	}
+
+	/**
+	 * Apply a coupon without showing storefront notices.
+	 *
+	 * @param string $code Coupon code.
+	 * @return void
+	 */
+	private function apply_coupon_quietly( $code ) {
+		$this->with_suppressed_coupon_notices(
+			function () use ( $code ) {
+				WC()->cart->apply_coupon( $code );
+			}
+		);
+	}
+
+	/**
+	 * Remove a coupon without showing storefront notices.
+	 *
+	 * @param string $code Coupon code.
+	 * @return void
+	 */
+	private function remove_coupon_quietly( $code ) {
+		$this->with_suppressed_coupon_notices(
+			function () use ( $code ) {
+				WC()->cart->remove_coupon( $code );
+			}
+		);
+	}
+
+	/**
+	 * Run a callback while suppressing coupon success/error notices.
+	 *
+	 * @param callable $callback Callback to run.
+	 * @return void
+	 */
+	private function with_suppressed_coupon_notices( $callback ) {
+		add_filter( 'woocommerce_coupon_message', array( $this, 'suppress_coupon_notice' ), 100 );
+		add_filter( 'woocommerce_coupon_error', array( $this, 'suppress_coupon_notice' ), 100 );
+
+		try {
+			$callback();
+		} finally {
+			remove_filter( 'woocommerce_coupon_message', array( $this, 'suppress_coupon_notice' ), 100 );
+			remove_filter( 'woocommerce_coupon_error', array( $this, 'suppress_coupon_notice' ), 100 );
+		}
+	}
+
+	/**
+	 * Suppress coupon notices during quiet apply/remove.
+	 *
+	 * @return string
+	 */
+	public function suppress_coupon_notice() {
+		return '';
 	}
 
 	/**

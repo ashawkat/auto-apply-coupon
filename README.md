@@ -83,7 +83,10 @@ auto-apply-cart-coupon/
 |------|---------|
 | `woocommerce_coupon_options` | Renders Auto Apply and First Month Only checkboxes |
 | `woocommerce_coupon_options_save` | Saves checkbox values |
-| `woocommerce_add_to_cart` | Applies auto-apply coupons |
+| `woocommerce_add_to_cart` | Syncs auto-apply coupons against usage restrictions |
+| `woocommerce_after_cart_item_quantity_update` | Re-checks eligibility when quantities change |
+| `woocommerce_cart_item_removed` / `restored` | Re-checks eligibility when cart items change |
+| `woocommerce_cart_loaded_from_session` | Re-syncs coupons when the cart is loaded |
 | `woocommerce_before_calculate_totals` | Removes first-month-only coupons from recurring totals |
 | `woocommerce_coupon_is_valid` | Blocks first-month-only coupons on renewals |
 | `woocommerce_subscription_payment_complete` | Removes first-month-only coupons after initial payment |
@@ -108,6 +111,9 @@ With WooCommerce Subscriptions active, it limits the coupon to the first subscri
 ---
 
 ## Changelog
+
+### 1.1.1
+- Fixed: Auto-apply respects coupon usage restrictions (products, min/max spend, etc.)
 
 ### 1.1.0
 - Added: First Month Only option for subscription purchases

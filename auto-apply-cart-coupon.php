@@ -3,7 +3,7 @@
  * Plugin Name:       Auto Apply Cart Coupon
  * Plugin URI:        https://betatech.co/
  * Description:       Adds an option to coupons to automatically apply them to the cart when an item is added.
- * Version:           1.1.0
+ * Version:           1.1.1
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Betatech
@@ -32,7 +32,7 @@ add_action(
 	}
 );
 
-define( 'AACC_VERSION', '1.1.0' );
+define( 'AACC_VERSION', '1.1.1' );
 define( 'AACC_FILE', __FILE__ );
 define( 'AACC_PATH', plugin_dir_path( __FILE__ ) );
 define( 'AACC_URL', plugin_dir_url( __FILE__ ) );

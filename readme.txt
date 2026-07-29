@@ -4,7 +4,7 @@ Tags: coupon, auto apply, cart, discount, automatic coupon
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 WC requires at least: 7.0
 WC tested up to: 9.6
 License: GPLv3 or later
@@ -85,6 +85,9 @@ When enabled, the coupon discounts only the first payment of a subscription and 
 
 == Changelog ==
 
+= 1.1.1 =
+* Fixed: Auto-apply now respects coupon usage restrictions (allowed products, minimum spend, maximum spend, and related rules) before applying or keeping a coupon on the cart
+
 = 1.1.0 =
 * Added: First Month Only option on coupons — limits the discount to the first subscription payment (not renewals)
 
@@ -99,6 +102,9 @@ When enabled, the coupon discounts only the first payment of a subscription and 
 * Settings link on the Plugins page
 
 == Upgrade Notice ==
+
+= 1.1.1 =
+Recommended update — auto-apply now honors product and spend restrictions on coupons.
 
 = 1.1.0 =
 Adds a First Month Only option for subscription coupon purchases.
