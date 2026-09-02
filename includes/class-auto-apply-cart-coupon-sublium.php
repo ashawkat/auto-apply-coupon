@@ -60,6 +60,12 @@ class Auto_Apply_Cart_Coupon_Sublium {
 		add_action( 'woocommerce_before_calculate_totals', array( $this, 'strip_plan_from_first_month_gifts' ), 99 );
 		add_action( 'woocommerce_checkout_create_order_line_item', array( $this, 'strip_plan_from_order_line_item' ), 99, 4 );
 
+		// Prevent Sublium from assigning a plan when giveaways are added to the cart.
+		add_filter( 'sublium_wcs_exclude_product_from_plan_assignment', array( $this, 'exclude_gifts_from_plan_assignment' ), 10, 4 );
+
+		// Keep first-month giveaways out of Sublium recurring carts (checkout "Renewal Price").
+		add_filter( 'sublium_wcs_subscription_groups', array( $this, 'exclude_gifts_from_subscription_groups' ), 20 );
+
 		// After Sublium creates a subscription, remove leftover free gifts.
 		add_action( 'sublium_wcs_subscription_created', array( $this, 'on_subscription_created' ), 20, 1 );
 		add_filter( 'sublium_wcs_subscription_created', array( $this, 'filter_subscription_created' ), 20, 1 );
@@ -85,6 +91,7 @@ class Auto_Apply_Cart_Coupon_Sublium {
 		}
 
 		$gift_product_ids = $this->get_first_month_giveaway_product_ids_from_cart();
+		$stripped         = false;
 
 		foreach ( $cart->get_cart() as $cart_item_key => $cart_item ) {
 			if ( ! $this->is_first_month_gift_cart_item( $cart_item, $gift_product_ids ) ) {
@@ -94,11 +101,125 @@ class Auto_Apply_Cart_Coupon_Sublium {
 			unset( WC()->cart->cart_contents[ $cart_item_key ]['sublium_wcs_plan'] );
 			unset( WC()->cart->cart_contents[ $cart_item_key ]['_sublium_wcs_plan'] );
 			unset( WC()->cart->cart_contents[ $cart_item_key ]['_sublium_data'] );
+			unset( WC()->cart->cart_contents[ $cart_item_key ]['sublium_wcs_plan_summary'] );
+			unset( WC()->cart->cart_contents[ $cart_item_key ]['sublium_wcs_plan_selected'] );
 
 			if ( isset( WC()->cart->cart_contents[ $cart_item_key ]['variation'] ) && is_array( WC()->cart->cart_contents[ $cart_item_key ]['variation'] ) ) {
 				unset( WC()->cart->cart_contents[ $cart_item_key ]['variation']['_sublium_data'] );
 				unset( WC()->cart->cart_contents[ $cart_item_key ]['variation']['sublium_wcs_plan'] );
 			}
+
+			if ( isset( WC()->cart->cart_contents[ $cart_item_key ]['data'] ) && is_object( WC()->cart->cart_contents[ $cart_item_key ]['data'] ) ) {
+				$product = WC()->cart->cart_contents[ $cart_item_key ]['data'];
+				if ( method_exists( $product, 'delete_meta_data' ) ) {
+					$product->delete_meta_data( 'sublium_wcs_plan' );
+					$product->delete_meta_data( '_sublium_wcs_plan' );
+					$product->delete_meta_data( '_sublium_data' );
+				}
+			}
+
+			$stripped = true;
+		}
+
+		if ( $stripped ) {
+			$this->clear_sublium_recurring_carts_cache();
+		}
+	}
+
+	/**
+	 * Exclude free-gift / giveaway products from Sublium plan assignment on add-to-cart.
+	 *
+	 * @param bool  $exclude        Whether to exclude.
+	 * @param array $cart_item_data Cart item data being added.
+	 * @param int   $product_id     Product ID.
+	 * @param int   $variation_id   Variation ID.
+	 * @return bool
+	 */
+	public function exclude_gifts_from_plan_assignment( $exclude, $cart_item_data, $product_id, $variation_id ) {
+		if ( $exclude ) {
+			return $exclude;
+		}
+
+		if ( ! is_array( $cart_item_data ) ) {
+			$cart_item_data = array();
+		}
+
+		foreach ( $this->gift_meta_keys as $key ) {
+			if ( ! empty( $cart_item_data[ $key ] ) ) {
+				return true;
+			}
+		}
+
+		if ( ! $this->cart_has_first_month_only_coupon() ) {
+			return $exclude;
+		}
+
+		$gift_product_ids = $this->get_first_month_giveaway_product_ids_from_cart();
+
+		if ( $this->product_id_in_list( (int) $product_id, (int) $variation_id, $gift_product_ids ) ) {
+			return true;
+		}
+
+		return $exclude;
+	}
+
+	/**
+	 * Remove first-month free gifts from Sublium recurring cart groups.
+	 *
+	 * This is what drives the checkout "Subscribe & Save → Renewal Price" total.
+	 *
+	 * @param array $subscription_groups Cart item keys grouped by recurring key.
+	 * @return array
+	 */
+	public function exclude_gifts_from_subscription_groups( $subscription_groups ) {
+		if ( ! is_array( $subscription_groups ) || empty( $subscription_groups ) || ! WC()->cart ) {
+			return $subscription_groups;
+		}
+
+		if ( ! $this->cart_has_first_month_only_coupon() ) {
+			return $subscription_groups;
+		}
+
+		$gift_product_ids = $this->get_first_month_giveaway_product_ids_from_cart();
+		$cart             = WC()->cart->get_cart();
+
+		foreach ( $subscription_groups as $recurring_key => $cart_keys ) {
+			if ( ! is_array( $cart_keys ) ) {
+				continue;
+			}
+
+			$filtered = array();
+
+			foreach ( $cart_keys as $cart_item_key ) {
+				if ( ! isset( $cart[ $cart_item_key ] ) ) {
+					continue;
+				}
+
+				if ( $this->is_first_month_gift_cart_item( $cart[ $cart_item_key ], $gift_product_ids ) ) {
+					continue;
+				}
+
+				$filtered[] = $cart_item_key;
+			}
+
+			if ( empty( $filtered ) ) {
+				unset( $subscription_groups[ $recurring_key ] );
+			} else {
+				$subscription_groups[ $recurring_key ] = $filtered;
+			}
+		}
+
+		return $subscription_groups;
+	}
+
+	/**
+	 * Clear Sublium's in-request recurring cart cache after we change plan data.
+	 *
+	 * @return void
+	 */
+	private function clear_sublium_recurring_carts_cache() {
+		if ( class_exists( '\Sublium_WCS\Includes\Main\Cart' ) && is_callable( array( '\Sublium_WCS\Includes\Main\Cart', 'clear_recurring_carts_cache' ) ) ) {
+			\Sublium_WCS\Includes\Main\Cart::clear_recurring_carts_cache();
 		}
 	}
 
@@ -410,6 +531,8 @@ class Auto_Apply_Cart_Coupon_Sublium {
 			'_wc_free_gift_coupon',
 			'wc_free_products',
 			'_wc_free_products',
+			'_wt_free_product_ids',
+			'wt_free_product_ids',
 		);
 
 		foreach ( $keys as $key ) {
@@ -461,6 +584,11 @@ class Auto_Apply_Cart_Coupon_Sublium {
 	 * @return bool
 	 */
 	private function is_first_month_gift_cart_item( $cart_item, $gift_product_ids ) {
+		// WebToffee giveaway marker (even when other gift keys are absent).
+		if ( isset( $cart_item['free_product'] ) && 'wt_give_away_product' === $cart_item['free_product'] ) {
+			return true;
+		}
+
 		foreach ( $this->gift_meta_keys as $key ) {
 			if ( ! empty( $cart_item[ $key ] ) ) {
 				return true;

@@ -92,6 +92,8 @@ auto-apply-cart-coupon/
 | `woocommerce_coupon_is_valid` | Blocks first-month-only coupons on renewals |
 | `woocommerce_subscription_payment_complete` | Removes first-month-only coupons after initial payment (WooCommerce Subscriptions) |
 | `sublium_wcs_subscription_created` | Removes first-month free gifts from Sublium subscriptions |
+| `sublium_wcs_subscription_groups` | Excludes first-month free gifts from Sublium recurring cart / renewal price |
+| `sublium_wcs_exclude_product_from_plan_assignment` | Prevents giveaways from receiving a Sublium plan on add-to-cart |
 | `before_woocommerce_init` | Declares HPOS compatibility |
 
 ---
@@ -113,6 +115,9 @@ With WooCommerce Subscriptions active, it limits the coupon to the first subscri
 ---
 
 ## Changelog
+
+### 1.2.2
+- Fixed: Sublium checkout renewal price no longer includes first-month-only free gifts / giveaways
 
 ### 1.2.1
 - Fixed: WebToffee Smart Coupons giveaways now add when Auto Apply runs via AJAX add-to-cart

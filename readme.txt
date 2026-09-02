@@ -4,7 +4,7 @@ Tags: coupon, auto apply, cart, discount, automatic coupon
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.2.1
+Stable tag: 1.2.2
 WC requires at least: 7.0
 WC tested up to: 9.6
 License: GPLv3 or later
@@ -85,6 +85,9 @@ When enabled, the coupon discounts only the first payment of a subscription and 
 
 == Changelog ==
 
+= 1.2.2 =
+* Fixed: Sublium checkout "Renewal Price" no longer includes first-month-only free gifts / giveaways
+
 = 1.2.1 =
 * Fixed: WebToffee Smart Coupons giveaway products now add to cart when Auto Apply runs during AJAX add-to-cart
 
@@ -108,6 +111,9 @@ When enabled, the coupon discounts only the first payment of a subscription and 
 * Settings link on the Plugins page
 
 == Upgrade Notice ==
+
+= 1.2.2 =
+Fixes Sublium Subscribe & Save renewal price including first-month free gifts.
 
 = 1.2.1 =
 Fixes free/giveaway products not being added when Auto Apply runs on AJAX add-to-cart.
