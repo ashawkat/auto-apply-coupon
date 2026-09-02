@@ -56,7 +56,7 @@ final class Auto_Apply_Cart_Coupon {
 	 * Constructor.
 	 */
 	private function __construct() {
-		add_action( 'plugins_loaded', array( $this, 'init' ) );
+		add_action( 'plugins_loaded', array( $this, 'init' ), 20 );
 		add_filter( 'plugin_action_links_' . AACC_BASENAME, array( $this, 'add_settings_link' ) );
 	}
 
@@ -83,6 +83,24 @@ final class Auto_Apply_Cart_Coupon {
 			require_once AACC_PATH . 'includes/class-auto-apply-cart-coupon-subscriptions.php';
 			Auto_Apply_Cart_Coupon_Subscriptions::instance();
 		}
+
+		if ( $this->is_sublium_active() ) {
+			require_once AACC_PATH . 'includes/class-auto-apply-cart-coupon-sublium.php';
+			Auto_Apply_Cart_Coupon_Sublium::instance();
+		}
+	}
+
+	/**
+	 * Whether Sublium Subscriptions is available.
+	 *
+	 * @return bool
+	 */
+	private function is_sublium_active() {
+		return function_exists( 'sublium_get_subscription' )
+			|| function_exists( 'sublium_init' )
+			|| class_exists( '\Sublium_WCS\Plugin' )
+			|| class_exists( '\Sublium\Plugin' )
+			|| defined( 'SUBLIUM_WCS_PLUGIN_FILE' );
 	}
 
 	/**

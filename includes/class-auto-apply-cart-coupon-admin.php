@@ -61,7 +61,7 @@ class Auto_Apply_Cart_Coupon_Admin {
 			array(
 				'id'          => Auto_Apply_Cart_Coupon::FIRST_MONTH_META_KEY,
 				'label'       => __( 'First Month Only', 'auto-apply-cart-coupon' ),
-				'description' => __( 'For subscription purchases, apply this coupon to the first payment only. It will not discount renewals.', 'auto-apply-cart-coupon' ),
+				'description' => __( 'For subscription purchases (WooCommerce Subscriptions or Sublium), apply this coupon / free gift to the first payment only. It will not apply on renewals.', 'auto-apply-cart-coupon' ),
 				'value'       => wc_bool_to_string( 'yes' === Auto_Apply_Cart_Coupon::get_first_month_only_value( $coupon ) ),
 			)
 		);

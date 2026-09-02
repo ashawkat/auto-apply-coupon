@@ -93,6 +93,9 @@ class Auto_Apply_Cart_Coupon_Cart {
 		if ( ! WC()->cart->is_empty() ) {
 			foreach ( $auto_coupons as $code ) {
 				if ( WC()->cart->has_discount( $code ) ) {
+					// Coupon may already be applied from a prior AJAX request where
+					// WebToffee Smart Coupons skipped giveaway add (is_admin() on admin-ajax).
+					$this->maybe_add_webtoffee_giveaways( $code );
 					continue;
 				}
 
@@ -101,10 +104,183 @@ class Auto_Apply_Cart_Coupon_Cart {
 				}
 
 				$this->apply_coupon_quietly( $code );
+				$this->maybe_add_webtoffee_giveaways( $code );
 			}
 		}
 
 		$this->is_syncing = false;
+	}
+
+	/**
+	 * Ensure WebToffee Smart Coupons giveaway products are in the cart.
+	 *
+	 * WT's giveaway handler bails when is_admin() is true, which is the case for
+	 * frontend add-to-cart requests that hit admin-ajax.php. After we apply a
+	 * coupon in that context, add the giveaway products ourselves using the same
+	 * cart item markers WT expects so discounts and order meta still work.
+	 *
+	 * @param string $code Coupon code.
+	 * @return void
+	 */
+	private function maybe_add_webtoffee_giveaways( $code ) {
+		if ( ! class_exists( 'Wt_Smart_Coupon_Giveaway_Product_Public' ) && ! class_exists( 'Wt_Smart_Coupon_Giveaway_Product_Common' ) ) {
+			return;
+		}
+
+		if ( ! WC()->cart || ! WC()->cart->has_discount( $code ) ) {
+			return;
+		}
+
+		$coupon = new WC_Coupon( $code );
+
+		if ( ! $coupon->get_id() ) {
+			return;
+		}
+
+		$product_ids = $this->get_webtoffee_giveaway_product_ids( $coupon->get_id() );
+
+		if ( empty( $product_ids ) ) {
+			return;
+		}
+
+		foreach ( $product_ids as $item_id ) {
+			if ( $this->cart_has_webtoffee_giveaway( $code, $item_id ) ) {
+				continue;
+			}
+
+			$this->add_webtoffee_giveaway_to_cart( $item_id, $code );
+		}
+	}
+
+	/**
+	 * Read giveaway product IDs from WebToffee Smart Coupons meta.
+	 *
+	 * @param int $coupon_id Coupon ID.
+	 * @return array<int>
+	 */
+	private function get_webtoffee_giveaway_product_ids( $coupon_id ) {
+		if ( class_exists( 'Wt_Smart_Coupon_Giveaway_Product_Common' ) && is_callable( array( 'Wt_Smart_Coupon_Giveaway_Product_Common', 'get_giveaway_products' ) ) ) {
+			$ids = Wt_Smart_Coupon_Giveaway_Product_Common::get_giveaway_products( $coupon_id );
+			if ( is_array( $ids ) && ! empty( $ids ) ) {
+				return array_values( array_filter( array_map( 'absint', $ids ) ) );
+			}
+		}
+
+		if ( class_exists( 'Wt_Smart_Coupon_Giveaway_Product_Public' ) && is_callable( array( 'Wt_Smart_Coupon_Giveaway_Product_Public', 'get_giveaway_products' ) ) ) {
+			$ids = Wt_Smart_Coupon_Giveaway_Product_Public::get_giveaway_products( $coupon_id );
+			if ( is_array( $ids ) && ! empty( $ids ) ) {
+				return array_values( array_filter( array_map( 'absint', $ids ) ) );
+			}
+		}
+
+		$meta = get_post_meta( $coupon_id, '_wt_free_product_ids', true );
+
+		if ( empty( $meta ) ) {
+			return array();
+		}
+
+		if ( is_array( $meta ) ) {
+			return array_values( array_filter( array_map( 'absint', $meta ) ) );
+		}
+
+		return array_values( array_filter( array_map( 'absint', explode( ',', (string) $meta ) ) ) );
+	}
+
+	/**
+	 * Whether the cart already has this WebToffee giveaway for the coupon.
+	 *
+	 * @param string $code    Coupon code.
+	 * @param int    $item_id Product or variation ID.
+	 * @return bool
+	 */
+	private function cart_has_webtoffee_giveaway( $code, $item_id ) {
+		$code    = wc_format_coupon_code( $code );
+		$item_id = absint( $item_id );
+
+		foreach ( WC()->cart->get_cart() as $cart_item ) {
+			if ( empty( $cart_item['free_gift_coupon'] ) || empty( $cart_item['free_product'] ) ) {
+				continue;
+			}
+
+			if ( 'wt_give_away_product' !== $cart_item['free_product'] ) {
+				continue;
+			}
+
+			if ( wc_format_coupon_code( $cart_item['free_gift_coupon'] ) !== $code ) {
+				continue;
+			}
+
+			$cart_product_id   = isset( $cart_item['product_id'] ) ? absint( $cart_item['product_id'] ) : 0;
+			$cart_variation_id = isset( $cart_item['variation_id'] ) ? absint( $cart_item['variation_id'] ) : 0;
+
+			if ( $item_id === $cart_product_id || $item_id === $cart_variation_id ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Add a WebToffee giveaway product with the cart markers WT expects.
+	 *
+	 * @param int    $item_id Product or variation ID.
+	 * @param string $code    Coupon code.
+	 * @return void
+	 */
+	private function add_webtoffee_giveaway_to_cart( $item_id, $code ) {
+		$product = wc_get_product( $item_id );
+
+		if ( ! $product || ! $product->is_purchasable() ) {
+			return;
+		}
+
+		// Variable parents cannot be added; customer must pick a variation.
+		if ( $product->is_type( 'variable' ) ) {
+			return;
+		}
+
+		$quantity     = 1;
+		$product_id   = $item_id;
+		$variation_id = 0;
+		$variation    = array();
+
+		if ( $product->is_type( 'variation' ) ) {
+			$variation_id = $item_id;
+			$product_id   = $product->get_parent_id();
+			$variation    = $product->get_variation_attributes();
+
+			foreach ( $variation as $attribute_value ) {
+				if ( '' === $attribute_value ) {
+					return;
+				}
+			}
+		}
+
+		if ( ! $product->has_enough_stock( $quantity ) ) {
+			$quantity = (int) $product->get_stock_quantity();
+			if ( $quantity < 1 ) {
+				return;
+			}
+		}
+
+		$cart_item_data = array(
+			'free_product'     => 'wt_give_away_product',
+			'free_gift_coupon' => wc_format_coupon_code( $code ),
+			'free_category'    => '',
+		);
+
+		/**
+		 * Allow other code (including WT itself) to alter giveaway cart item data.
+		 *
+		 * @param array $cart_item_data Cart item data.
+		 * @param int   $product_id     Product ID.
+		 * @param int   $variation_id   Variation ID.
+		 * @param int   $quantity       Quantity.
+		 */
+		$cart_item_data = apply_filters( 'wt_sc_alter_giveaway_cart_item_data_before_add_to_cart', $cart_item_data, $product_id, $variation_id, $quantity );
+
+		WC()->cart->add_to_cart( $product_id, $quantity, $variation_id, $variation, $cart_item_data );
 	}
 
 	/**
