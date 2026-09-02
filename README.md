@@ -9,7 +9,8 @@ Built by [Betatech](https://betatech.co/).
 ## Features
 
 - **Auto Apply Coupon** checkbox on each coupon edit screen
-- **First Month Only** checkbox for subscription purchases (requires WooCommerce Subscriptions)
+- **First Month Only** checkbox for subscription purchases
+- Works with **WooCommerce Subscriptions** and **Sublium** (FunnelKit Subscribe & Save)
 - Applies enabled coupons automatically when a product is added to the cart
 - Avoids duplicate application if the coupon is already active
 - Caches auto-apply coupon codes for performance
@@ -24,6 +25,11 @@ Built by [Betatech](https://betatech.co/).
 - **WordPress** 6.0+
 - **PHP** 7.4+
 - **WooCommerce** 7.0+
+
+### Optional (First Month Only)
+
+- **WooCommerce Subscriptions**, and/or
+- **Sublium** (Sublium Subscriptions for WooCommerce / FunnelKit)
 
 ---
 
@@ -54,7 +60,12 @@ Built by [Betatech](https://betatech.co/).
 
 When a shopper adds any product to their cart, auto-apply coupons are applied automatically (as long as WooCommerce coupon rules allow it).
 
-With **First Month Only** enabled and WooCommerce Subscriptions active, the coupon discounts the initial subscription payment only and is blocked on renewals.
+### First Month Only
+
+With **First Month Only** enabled:
+
+- **WooCommerce Subscriptions** — the coupon discounts the initial payment only and is blocked on renewals.
+- **Sublium** — free gifts / giveaways from the coupon stay on the initial order only. They are excluded from the subscription, from Sublium’s checkout **Renewal Price** (Subscribe & Save), and from future renewals.
 
 You can also click **Settings** on the plugin row under **Plugins** to jump straight to the coupons list.
 
@@ -110,7 +121,10 @@ Yes. Every coupon with auto apply enabled will be attempted when a product is ad
 Yes. The plugin declares compatibility with WooCommerce custom order tables.
 
 **What does First Month Only do?**  
-With WooCommerce Subscriptions active, it limits the coupon to the first subscription payment so renewals are charged at full price.
+It limits the coupon (and any free gifts / giveaways it adds) to the first subscription payment. Renewals are charged at full price. Supported with **WooCommerce Subscriptions** and **Sublium**.
+
+**Does it work with Sublium / FunnelKit Subscribe & Save?**  
+Yes. First Month Only keeps free gifts on the parent order only and keeps them out of Sublium’s recurring cart so the checkout renewal price stays correct.
 
 ---
 

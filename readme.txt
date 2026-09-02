@@ -1,6 +1,6 @@
 === Auto Apply Cart Coupon ===
 Contributors: betatech
-Tags: coupon, auto apply, cart, discount, automatic coupon
+Tags: coupon, auto apply, cart, discount, automatic coupon, sublium, subscriptions
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
@@ -21,7 +21,8 @@ This plugin requires **WooCommerce** to be installed and active.
 ### Key Features
 
 * Adds an **Auto Apply Coupon** option on the coupon edit screen
-* Adds a **First Month Only** option for subscription purchases (requires WooCommerce Subscriptions)
+* Adds a **First Month Only** option for subscription purchases
+* Compatible with **WooCommerce Subscriptions** and **Sublium** (FunnelKit Subscribe & Save)
 * Applies selected coupons automatically on `add to cart`
 * Skips coupons that are already applied to the cart
 * Caches auto-apply coupon codes for better performance
@@ -34,6 +35,7 @@ This plugin requires **WooCommerce** to be installed and active.
 * Welcome discounts for new shoppers
 * Site-wide promotions that should apply without friction
 * Campaign coupons that must activate as soon as a product is added
+* First-month-only subscription discounts and free gifts (WooCommerce Subscriptions or Sublium)
 
 == Installation ==
 
@@ -76,7 +78,11 @@ Yes. The plugin declares compatibility with WooCommerce custom order tables.
 
 = What does First Month Only do? =
 
-When enabled, the coupon discounts only the first payment of a subscription and will not apply to renewals. This requires WooCommerce Subscriptions.
+When enabled, the coupon (and any free gifts / giveaways it adds) discounts only the first payment of a subscription and will not apply to renewals. Works with **WooCommerce Subscriptions** and **Sublium**.
+
+= Does it work with Sublium / FunnelKit Subscribe & Save? =
+
+Yes. With First Month Only enabled, free gifts stay on the initial order only and are excluded from Sublium’s recurring subscription and checkout renewal price.
 
 == Screenshots ==
 
