@@ -104,7 +104,8 @@ auto-apply-cart-coupon/
 | `woocommerce_subscription_payment_complete` | Removes first-month-only coupons after initial payment (WooCommerce Subscriptions) |
 | `sublium_wcs_subscription_created` | Removes first-month free gifts from Sublium subscriptions |
 | `sublium_wcs_subscription_groups` | Excludes first-month free gifts from Sublium recurring cart / renewal price |
-| `sublium_wcs_exclude_product_from_plan_assignment` | Prevents giveaways from receiving a Sublium plan on add-to-cart |
+| `sublium_wcs_subscription_price` | Syncs Sublium recurring unit price to the main cart line price |
+| `sublium_wcs_woocommerce_cart_item_total` | Fallback display filter for checkout renewal price |
 | `before_woocommerce_init` | Declares HPOS compatibility |
 
 ---
@@ -129,6 +130,9 @@ Yes. First Month Only keeps free gifts on the parent order only and keeps them o
 ---
 
 ## Changelog
+
+### 1.2.3
+- Fixed: Sublium checkout renewal price uses the cart Subscribe & Save line price instead of the raw variation price
 
 ### 1.2.2
 - Fixed: Sublium checkout renewal price no longer includes first-month-only free gifts / giveaways

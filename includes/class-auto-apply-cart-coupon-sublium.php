@@ -66,6 +66,10 @@ class Auto_Apply_Cart_Coupon_Sublium {
 		// Keep first-month giveaways out of Sublium recurring carts (checkout "Renewal Price").
 		add_filter( 'sublium_wcs_subscription_groups', array( $this, 'exclude_gifts_from_subscription_groups' ), 20 );
 
+		// Use the cart line unit price for Sublium recurring totals (not raw variation price).
+		add_filter( 'sublium_wcs_subscription_price', array( $this, 'sync_recurring_price_to_cart' ), 20, 4 );
+		add_filter( 'sublium_wcs_woocommerce_cart_item_total', array( $this, 'filter_recurring_total_display' ), 20, 2 );
+
 		// After Sublium creates a subscription, remove leftover free gifts.
 		add_action( 'sublium_wcs_subscription_created', array( $this, 'on_subscription_created' ), 20, 1 );
 		add_filter( 'sublium_wcs_subscription_created', array( $this, 'filter_subscription_created' ), 20, 1 );
@@ -161,6 +165,128 @@ class Auto_Apply_Cart_Coupon_Sublium {
 		}
 
 		return $exclude;
+	}
+
+	/**
+	 * When Sublium builds recurring cart totals, reuse the main cart unit price.
+	 *
+	 * Sublium recalculates renewals from the product/variation price. That can ignore
+	 * the Subscribe & Save / volume price already reflected on the cart line, so checkout
+	 * shows the higher variation total. Prefer line_subtotal (before coupons) so
+	 * first-month-only coupons still do not leak into renewals.
+	 *
+	 * @param float       $price             Calculated unit price.
+	 * @param WC_Product  $product           Product object.
+	 * @param mixed       $plan              Plan object (or calculation context).
+	 * @param string      $calculation_type  Sublium calculation type.
+	 * @return float
+	 */
+	public function sync_recurring_price_to_cart( $price, $product, $plan = null, $calculation_type = 'none' ) {
+		unset( $plan );
+
+		if ( 'recurring_total' !== $calculation_type ) {
+			return $price;
+		}
+
+		if ( ! $product instanceof WC_Product || ! WC()->cart ) {
+			return $price;
+		}
+
+		$cart_unit_price = $this->get_main_cart_unit_price_for_product( $product );
+
+		if ( null === $cart_unit_price || $cart_unit_price < 0 ) {
+			return $price;
+		}
+
+		return (float) $cart_unit_price;
+	}
+
+	/**
+	 * Fallback: rewrite the checkout "Renewal Price" HTML from main-cart plan lines.
+	 *
+	 * @param string  $price_html     Formatted price HTML.
+	 * @param WC_Cart $recurring_cart Recurring cart object.
+	 * @return string
+	 */
+	public function filter_recurring_total_display( $price_html, $recurring_cart ) {
+		if ( ! $recurring_cart || ! is_object( $recurring_cart ) || ! method_exists( $recurring_cart, 'get_cart' ) ) {
+			return $price_html;
+		}
+
+		$total = 0.0;
+		$found = false;
+
+		foreach ( $recurring_cart->get_cart() as $cart_item ) {
+			if ( empty( $cart_item['data'] ) || ! $cart_item['data'] instanceof WC_Product ) {
+				continue;
+			}
+
+			$unit = $this->get_main_cart_unit_price_for_product( $cart_item['data'] );
+
+			if ( null === $unit ) {
+				// Fall back to this recurring cart line if we cannot map it.
+				if ( isset( $cart_item['line_subtotal'] ) ) {
+					$total += (float) $cart_item['line_subtotal'];
+					$found  = true;
+				}
+				continue;
+			}
+
+			$qty    = isset( $cart_item['quantity'] ) ? (float) $cart_item['quantity'] : 1;
+			$total += $unit * $qty;
+			$found  = true;
+		}
+
+		if ( ! $found ) {
+			return $price_html;
+		}
+
+		return wc_price( $total );
+	}
+
+	/**
+	 * Get the main cart's per-unit line_subtotal for a product (ex-tax, before coupons).
+	 *
+	 * @param WC_Product $product Product object.
+	 * @return float|null
+	 */
+	private function get_main_cart_unit_price_for_product( $product ) {
+		if ( ! WC()->cart || ! $product instanceof WC_Product ) {
+			return null;
+		}
+
+		$product_id   = (int) $product->get_id();
+		$parent_id    = (int) $product->get_parent_id();
+		$match_ids    = array_filter( array( $product_id, $parent_id ) );
+
+		foreach ( WC()->cart->get_cart() as $cart_item ) {
+			if ( empty( $cart_item['sublium_wcs_plan'] ) ) {
+				continue;
+			}
+
+			if ( $this->is_first_month_gift_cart_item( $cart_item, $this->get_first_month_giveaway_product_ids_from_cart() ) ) {
+				continue;
+			}
+
+			$item_product_id   = isset( $cart_item['product_id'] ) ? (int) $cart_item['product_id'] : 0;
+			$item_variation_id = isset( $cart_item['variation_id'] ) ? (int) $cart_item['variation_id'] : 0;
+			$data_id           = ( isset( $cart_item['data'] ) && $cart_item['data'] instanceof WC_Product ) ? (int) $cart_item['data']->get_id() : 0;
+
+			$ids = array_filter( array( $item_product_id, $item_variation_id, $data_id ) );
+
+			if ( empty( array_intersect( $match_ids, $ids ) ) ) {
+				continue;
+			}
+
+			$qty = isset( $cart_item['quantity'] ) ? (float) $cart_item['quantity'] : 0;
+			if ( $qty <= 0 || ! isset( $cart_item['line_subtotal'] ) ) {
+				continue;
+			}
+
+			return (float) $cart_item['line_subtotal'] / $qty;
+		}
+
+		return null;
 	}
 
 	/**
