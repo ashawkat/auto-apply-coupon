@@ -25,18 +25,17 @@ class Auto_Apply_Cart_Coupon_Sublium {
 	/**
 	 * Cart/order item meta keys that mark a free gift / giveaway product.
 	 *
+	 * Keep this list strict — broad keys like `discounted_price` or a bare `free_gift`
+	 * can false-positive on normal Subscribe & Save lines and strip their Sublium plan.
+	 *
 	 * @var array<string>
 	 */
 	private $gift_meta_keys = array(
 		'_fkcart_free_gift',
 		'_tikva_free_gift',
-		'free_gift',
 		'free_gift_coupon',
-		'free_product',
-		'wc_sc_product_source',
 		'wc_sc_free_product',
 		'_wc_sc_free_product',
-		'discounted_price',
 	);
 
 	/**
@@ -194,7 +193,9 @@ class Auto_Apply_Cart_Coupon_Sublium {
 
 		$cart_unit_price = $this->get_main_cart_unit_price_for_product( $product );
 
-		if ( null === $cart_unit_price || $cart_unit_price < 0 ) {
+		// Never force a $0 recurring price — that can drop Subscribe & Save plan totals
+		// (e.g. free-trial / pre-totals carts) and prevent a real subscription sale.
+		if ( null === $cart_unit_price || $cart_unit_price <= 0 ) {
 			return $price;
 		}
 
@@ -710,7 +711,7 @@ class Auto_Apply_Cart_Coupon_Sublium {
 	 * @return bool
 	 */
 	private function is_first_month_gift_cart_item( $cart_item, $gift_product_ids ) {
-		// WebToffee giveaway marker (even when other gift keys are absent).
+		// WebToffee giveaway marker only — do not treat every free_product key as a gift.
 		if ( isset( $cart_item['free_product'] ) && 'wt_give_away_product' === $cart_item['free_product'] ) {
 			return true;
 		}
@@ -728,19 +729,9 @@ class Auto_Apply_Cart_Coupon_Sublium {
 			return true;
 		}
 
-		// $0 line that already carries a Sublium plan is almost certainly a giveaway
-		// incorrectly attached to the subscription.
-		$line_total = 0;
-		if ( isset( $cart_item['line_total'] ) ) {
-			$line_total = (float) $cart_item['line_total'];
-		} elseif ( isset( $cart_item['data'] ) && is_object( $cart_item['data'] ) && method_exists( $cart_item['data'], 'get_price' ) ) {
-			$qty        = isset( $cart_item['quantity'] ) ? (float) $cart_item['quantity'] : 1;
-			$line_total = (float) $cart_item['data']->get_price() * $qty;
-		}
-
-		$has_plan = ! empty( $cart_item['sublium_wcs_plan'] ) || ! empty( $cart_item['_sublium_wcs_plan'] ) || ! empty( $cart_item['_sublium_data'] );
-
-		return $has_plan && $line_total <= 0;
+		// Do NOT treat "$0 + has Sublium plan" as a gift by itself.
+		// 100%-off coupon lines and free-trial subscription products are $0 but must keep their plan.
+		return false;
 	}
 
 	/**
@@ -758,10 +749,13 @@ class Auto_Apply_Cart_Coupon_Sublium {
 			return true;
 		}
 
-		return (float) $item->get_total() <= 0 && (
-			$item->get_meta( 'sublium_wcs_plan', true ) ||
-			$item->get_meta( '_sublium_wcs_plan', true )
-		);
+		$free_product = $item->get_meta( 'free_product', true );
+		if ( 'wt_give_away_product' === $free_product ) {
+			return true;
+		}
+
+		// Do not treat plain $0 + Sublium plan lines as gifts (coupon / trial products).
+		return false;
 	}
 
 	/**

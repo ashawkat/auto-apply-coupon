@@ -4,7 +4,7 @@ Tags: coupon, auto apply, cart, discount, automatic coupon, sublium, subscriptio
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.2.3
+Stable tag: 1.2.4
 WC requires at least: 7.0
 WC tested up to: 9.6
 License: GPLv3 or later
@@ -91,6 +91,9 @@ Yes. With First Month Only enabled, free gifts stay on the initial order only an
 
 == Changelog ==
 
+= 1.2.4 =
+* Fixed: Narrowed Sublium gift detection so real Subscribe & Save items are not stripped of their plan (orders not counting as subscriptions)
+
 = 1.2.3 =
 * Fixed: Sublium checkout renewal price now uses the cart Subscribe & Save line price instead of the raw variation price
 
@@ -120,6 +123,9 @@ Yes. With First Month Only enabled, free gifts stay on the initial order only an
 * Settings link on the Plugins page
 
 == Upgrade Notice ==
+
+= 1.2.4 =
+Important — prevents Subscribe & Save items from losing their Sublium plan due to over-aggressive gift detection.
 
 = 1.2.3 =
 Fixes Sublium renewal price showing variation price instead of the cart Subscribe & Save price.
