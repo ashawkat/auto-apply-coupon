@@ -4,7 +4,7 @@ Tags: coupon, auto apply, cart, discount, automatic coupon, sublium, subscriptio
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.2.6
+Stable tag: 1.2.7
 WC requires at least: 7.0
 WC tested up to: 9.6
 License: GPLv3 or later
@@ -91,6 +91,9 @@ Yes. With First Month Only enabled, free gifts stay on the initial order only an
 
 == Changelog ==
 
+= 1.2.7 =
+* Fixed: First-month free gifts and coupons are reliably removed from Sublium subscriptions (reload DB item IDs + deferred cleanup)
+
 = 1.2.6 =
 * Fixed: Fully removed Sublium cart/checkout interference; gift cleanup is post-creation only, explicit $0 giveaways only, and cannot empty a subscription
 
@@ -129,6 +132,9 @@ Yes. With First Month Only enabled, free gifts stay on the initial order only an
 * Settings link on the Plugins page
 
 == Upgrade Notice ==
+
+= 1.2.7 =
+Fixes first-month free gifts remaining on Sublium subscriptions after checkout.
 
 = 1.2.6 =
 Critical safety update — Sublium subscription creation is no longer touched during checkout; only explicit free gifts are cleaned after creation.
