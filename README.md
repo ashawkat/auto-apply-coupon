@@ -128,6 +128,9 @@ Yes. First Month Only keeps free gifts on the parent order only and keeps them o
 
 ## Changelog
 
+### 1.2.8
+- Fixed: Free gift coupons add a separate one-time giveaway line when the same product is already in the cart as Subscribe & Save; giveaways are excluded from Sublium plan assignment so they stay $0 / one-time
+
 ### 1.2.7
 - Fixed: First-month free gifts / coupons are removed from Sublium subscriptions reliably (DB item reload + deferred cleanup; correct `get_subscription_items` / `delete_item` APIs)
 

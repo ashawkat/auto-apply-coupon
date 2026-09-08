@@ -540,10 +540,21 @@ class Auto_Apply_Cart_Coupon_Sublium {
 			}
 		}
 
+		// Product-ID match only when the line is also marked as a giveaway.
+		// Never treat a paid Subscribe & Save Circulation as the free gift just
+		// because Free Circulation's giveaway product is the same SKU.
+		$has_explicit_marker = (
+			( isset( $item_data['free_product'] ) && 'wt_give_away_product' === $item_data['free_product'] )
+			|| ! empty( $item_data['free_gift_coupon'] )
+			|| ! empty( $item_data['_fkcart_free_gift'] )
+			|| ! empty( $item_data['_tikva_free_gift'] )
+			|| ! empty( $item_data['aacc_giveaway_uid'] )
+		);
+
 		$product_id   = isset( $item_data['product_id'] ) ? (int) $item_data['product_id'] : 0;
 		$variation_id = isset( $item_data['variation_id'] ) ? (int) $item_data['variation_id'] : 0;
 
-		if ( $gift_product_ids && ( in_array( $product_id, $gift_product_ids, true ) || ( $variation_id && in_array( $variation_id, $gift_product_ids, true ) ) ) ) {
+		if ( $has_explicit_marker && $gift_product_ids && ( in_array( $product_id, $gift_product_ids, true ) || ( $variation_id && in_array( $variation_id, $gift_product_ids, true ) ) ) ) {
 			return true;
 		}
 
@@ -554,6 +565,7 @@ class Auto_Apply_Cart_Coupon_Sublium {
 			$name = (string) $item_data['product_name'];
 		}
 
+		// Dedicated free-gift product names (e.g. "3 Free Happy - Free Gift").
 		if ( $name && false !== stripos( $name, 'free gift' ) ) {
 			return true;
 		}

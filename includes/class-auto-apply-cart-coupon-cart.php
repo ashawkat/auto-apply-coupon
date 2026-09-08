@@ -27,6 +27,13 @@ class Auto_Apply_Cart_Coupon_Cart {
 	private $is_syncing = false;
 
 	/**
+	 * Whether we are currently inserting a giveaway line.
+	 *
+	 * @var bool
+	 */
+	private $adding_giveaway = false;
+
+	/**
 	 * Get plugin instance.
 	 *
 	 * @return Auto_Apply_Cart_Coupon_Cart
@@ -48,6 +55,27 @@ class Auto_Apply_Cart_Coupon_Cart {
 		add_action( 'woocommerce_cart_item_removed', array( $this, 'sync_auto_coupons' ), 20 );
 		add_action( 'woocommerce_cart_item_restored', array( $this, 'sync_auto_coupons' ), 20 );
 		add_action( 'woocommerce_cart_loaded_from_session', array( $this, 'sync_auto_coupons' ), 20 );
+		add_action( 'woocommerce_applied_coupon', array( $this, 'on_coupon_applied' ), 20 );
+
+		// Keep WebToffee giveaways one-time: never inherit a Sublium Subscribe & Save plan.
+		add_filter( 'sublium_wcs_exclude_product_from_plan_assignment', array( $this, 'exclude_giveaway_from_sublium_plan' ), 10, 4 );
+		add_filter( 'woocommerce_add_to_cart_sold_individually_found_in_cart', array( $this, 'allow_giveaway_when_sold_individually' ), 10, 5 );
+		add_action( 'woocommerce_before_calculate_totals', array( $this, 'normalize_giveaway_cart_items' ), 20 );
+	}
+
+	/**
+	 * After any coupon is applied, ensure its giveaway products are separate cart lines.
+	 *
+	 * @param string $code Coupon code.
+	 * @return void
+	 */
+	public function on_coupon_applied( $code ) {
+		if ( $this->is_syncing || $this->should_skip_auto_apply() ) {
+			return;
+		}
+
+		$this->maybe_add_webtoffee_giveaways( $code );
+		$this->normalize_giveaway_cart_items( WC()->cart );
 	}
 
 	/**
@@ -60,7 +88,7 @@ class Auto_Apply_Cart_Coupon_Cart {
 	 * @return void
 	 */
 	public function sync_auto_coupons() {
-		if ( $this->is_syncing || $this->should_skip_auto_apply() ) {
+		if ( $this->is_syncing || $this->should_skip_auto_apply() || $this->adding_giveaway ) {
 			return;
 		}
 
@@ -108,25 +136,123 @@ class Auto_Apply_Cart_Coupon_Cart {
 			}
 		}
 
+		$this->normalize_giveaway_cart_items( WC()->cart );
+
 		$this->is_syncing = false;
 	}
 
 	/**
-	 * Ensure WebToffee Smart Coupons giveaway products are in the cart.
+	 * Exclude WebToffee / AACC giveaway lines from Sublium plan assignment.
 	 *
-	 * WT's giveaway handler bails when is_admin() is true, which is the case for
-	 * frontend add-to-cart requests that hit admin-ajax.php. After we apply a
-	 * coupon in that context, add the giveaway products ourselves using the same
-	 * cart item markers WT expects so discounts and order meta still work.
+	 * Without this, a free Circulation giveaway inherits Subscribe & Save and looks
+	 * like the paid monthly Circulation instead of a one-time free gift.
+	 *
+	 * @param bool  $exclude         Whether to exclude.
+	 * @param array $cart_item_data  Cart item data being added.
+	 * @param int   $product_id      Product ID.
+	 * @param int   $variation_id    Variation ID.
+	 * @return bool
+	 */
+	public function exclude_giveaway_from_sublium_plan( $exclude, $cart_item_data, $product_id = 0, $variation_id = 0 ) {
+		unset( $product_id, $variation_id );
+
+		if ( $exclude || $this->adding_giveaway ) {
+			return true;
+		}
+
+		if ( ! is_array( $cart_item_data ) ) {
+			return $exclude;
+		}
+
+		if ( ! empty( $cart_item_data['aacc_giveaway_uid'] ) ) {
+			return true;
+		}
+
+		if ( isset( $cart_item_data['free_product'] ) && 'wt_give_away_product' === $cart_item_data['free_product'] ) {
+			return true;
+		}
+
+		if ( ! empty( $cart_item_data['free_gift_coupon'] ) ) {
+			return true;
+		}
+
+		return $exclude;
+	}
+
+	/**
+	 * Allow a giveaway to be added even when the product is sold individually
+	 * and already present as a paid cart line.
+	 *
+	 * @param bool  $found_in_cart  Whether WC thinks the product is already in cart.
+	 * @param int   $product_id     Product ID.
+	 * @param int   $variation_id   Variation ID.
+	 * @param array $cart_item_data Cart item data.
+	 * @param int   $cart_id        Generated cart id.
+	 * @return bool
+	 */
+	public function allow_giveaway_when_sold_individually( $found_in_cart, $product_id, $variation_id, $cart_item_data, $cart_id = '' ) {
+		unset( $product_id, $variation_id, $cart_id );
+
+		if ( $this->adding_giveaway ) {
+			return false;
+		}
+
+		if ( is_array( $cart_item_data ) && (
+			! empty( $cart_item_data['aacc_giveaway_uid'] )
+			|| ( isset( $cart_item_data['free_product'] ) && 'wt_give_away_product' === $cart_item_data['free_product'] )
+		) ) {
+			return false;
+		}
+
+		return $found_in_cart;
+	}
+
+	/**
+	 * Keep giveaways as $0 one-time lines (no Sublium plan).
+	 *
+	 * @param WC_Cart|null $cart Cart.
+	 * @return void
+	 */
+	public function normalize_giveaway_cart_items( $cart = null ) {
+		if ( ! $cart instanceof WC_Cart ) {
+			$cart = WC()->cart;
+		}
+
+		if ( ! $cart || $cart->is_empty() ) {
+			return;
+		}
+
+		foreach ( $cart->get_cart() as $cart_item_key => $cart_item ) {
+			if ( ! $this->is_giveaway_cart_item( $cart_item ) ) {
+				continue;
+			}
+
+			// Force one-time: strip any Sublium plan Sublium may have attached.
+			unset( $cart->cart_contents[ $cart_item_key ]['sublium_wcs_plan'] );
+			unset( $cart->cart_contents[ $cart_item_key ]['sublium_wcs_plan_locked'] );
+			unset( $cart->cart_contents[ $cart_item_key ]['sublium_wcs_plan_selected'] );
+			unset( $cart->cart_contents[ $cart_item_key ]['sublium_wcs_plan_summary'] );
+			unset( $cart->cart_contents[ $cart_item_key ]['sublium_available_plans'] );
+
+			if ( isset( $cart_item['data'] ) && is_object( $cart_item['data'] ) && method_exists( $cart_item['data'], 'set_price' ) ) {
+				$cart_item['data']->set_price( 0 );
+				if ( method_exists( $cart_item['data'], 'delete_meta_data' ) ) {
+					$cart_item['data']->delete_meta_data( 'sublium_wcs_plan' );
+					$cart_item['data']->delete_meta_data( 'is_sublium_wcs_discount' );
+				}
+				$cart->cart_contents[ $cart_item_key ]['data'] = $cart_item['data'];
+			}
+		}
+	}
+
+	/**
+	 * Ensure WebToffee Smart Coupons giveaway products are in the cart
+	 * as separate lines from any paid copy of the same product.
 	 *
 	 * @param string $code Coupon code.
 	 * @return void
 	 */
 	private function maybe_add_webtoffee_giveaways( $code ) {
-		if ( ! class_exists( 'Wt_Smart_Coupon_Giveaway_Product_Public' ) && ! class_exists( 'Wt_Smart_Coupon_Giveaway_Product_Common' ) ) {
-			return;
-		}
-
 		if ( ! WC()->cart || ! WC()->cart->has_discount( $code ) ) {
 			return;
 		}
@@ -189,6 +315,9 @@ class Auto_Apply_Cart_Coupon_Cart {
 	/**
 	 * Whether the cart already has this WebToffee giveaway for the coupon.
 	 *
+	 * Only counts lines marked as giveaways — a paid Subscribe & Save Circulation
+	 * does not satisfy the free gift.
+	 *
 	 * @param string $code    Coupon code.
 	 * @param int    $item_id Product or variation ID.
 	 * @return bool
@@ -198,15 +327,7 @@ class Auto_Apply_Cart_Coupon_Cart {
 		$item_id = absint( $item_id );
 
 		foreach ( WC()->cart->get_cart() as $cart_item ) {
-			if ( empty( $cart_item['free_gift_coupon'] ) || empty( $cart_item['free_product'] ) ) {
-				continue;
-			}
-
-			if ( 'wt_give_away_product' !== $cart_item['free_product'] ) {
-				continue;
-			}
-
-			if ( wc_format_coupon_code( $cart_item['free_gift_coupon'] ) !== $code ) {
+			if ( ! $this->is_giveaway_cart_item( $cart_item, $code ) ) {
 				continue;
 			}
 
@@ -222,7 +343,32 @@ class Auto_Apply_Cart_Coupon_Cart {
 	}
 
 	/**
+	 * Whether a cart item is a WebToffee / AACC giveaway line.
+	 *
+	 * @param array       $cart_item Cart item.
+	 * @param string|null $code      Optional coupon code to match.
+	 * @return bool
+	 */
+	private function is_giveaway_cart_item( $cart_item, $code = null ) {
+		if ( empty( $cart_item['free_gift_coupon'] ) || empty( $cart_item['free_product'] ) ) {
+			return false;
+		}
+
+		if ( 'wt_give_away_product' !== $cart_item['free_product'] ) {
+			return false;
+		}
+
+		if ( null !== $code && wc_format_coupon_code( $cart_item['free_gift_coupon'] ) !== wc_format_coupon_code( $code ) ) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
 	 * Add a WebToffee giveaway product with the cart markers WT expects.
+	 *
+	 * Always creates a distinct cart line from any paid copy of the same product.
 	 *
 	 * @param int    $item_id Product or variation ID.
 	 * @param string $code    Coupon code.
@@ -265,9 +411,11 @@ class Auto_Apply_Cart_Coupon_Cart {
 		}
 
 		$cart_item_data = array(
-			'free_product'     => 'wt_give_away_product',
-			'free_gift_coupon' => wc_format_coupon_code( $code ),
-			'free_category'    => '',
+			'free_product'      => 'wt_give_away_product',
+			'free_gift_coupon'  => wc_format_coupon_code( $code ),
+			'free_category'     => '',
+			// Unique key so WooCommerce never merges this with the paid Circulation line.
+			'aacc_giveaway_uid' => uniqid( 'aacc_gw_', true ),
 		);
 
 		/**
@@ -280,7 +428,20 @@ class Auto_Apply_Cart_Coupon_Cart {
 		 */
 		$cart_item_data = apply_filters( 'wt_sc_alter_giveaway_cart_item_data_before_add_to_cart', $cart_item_data, $product_id, $variation_id, $quantity );
 
-		WC()->cart->add_to_cart( $product_id, $quantity, $variation_id, $variation, $cart_item_data );
+		// Re-assert markers after filters.
+		$cart_item_data['free_product']     = 'wt_give_away_product';
+		$cart_item_data['free_gift_coupon'] = wc_format_coupon_code( $code );
+		if ( empty( $cart_item_data['aacc_giveaway_uid'] ) ) {
+			$cart_item_data['aacc_giveaway_uid'] = uniqid( 'aacc_gw_', true );
+		}
+
+		$this->adding_giveaway = true;
+
+		try {
+			WC()->cart->add_to_cart( $product_id, $quantity, $variation_id, $variation, $cart_item_data );
+		} finally {
+			$this->adding_giveaway = false;
+		}
 	}
 
 	/**
