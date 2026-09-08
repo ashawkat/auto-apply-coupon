@@ -102,10 +102,7 @@ auto-apply-cart-coupon/
 | `woocommerce_before_calculate_totals` | Removes first-month-only coupons from recurring totals |
 | `woocommerce_coupon_is_valid` | Blocks first-month-only coupons on renewals |
 | `woocommerce_subscription_payment_complete` | Removes first-month-only coupons after initial payment (WooCommerce Subscriptions) |
-| `sublium_wcs_subscription_created` | Removes first-month free gifts from Sublium subscriptions |
-| `sublium_wcs_subscription_groups` | Excludes first-month free gifts from Sublium recurring cart / renewal price |
-| `sublium_wcs_subscription_price` | Syncs Sublium recurring unit price to the main cart line price |
-| `sublium_wcs_woocommerce_cart_item_total` | Fallback display filter for checkout renewal price |
+| `sublium_wcs_subscription_created` | Removes first-month free gifts from Sublium subscriptions after creation |
 | `before_woocommerce_init` | Declares HPOS compatibility |
 
 ---
