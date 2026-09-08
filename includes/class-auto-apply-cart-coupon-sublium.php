@@ -55,19 +55,12 @@ class Auto_Apply_Cart_Coupon_Sublium {
 	 * Constructor.
 	 */
 	private function __construct() {
-		// Keep giveaways off Sublium plans in the cart / order items.
-		add_action( 'woocommerce_before_calculate_totals', array( $this, 'strip_plan_from_first_month_gifts' ), 99 );
-		add_action( 'woocommerce_checkout_create_order_line_item', array( $this, 'strip_plan_from_order_line_item' ), 99, 4 );
-
-		// Prevent Sublium from assigning a plan when giveaways are added to the cart.
-		add_filter( 'sublium_wcs_exclude_product_from_plan_assignment', array( $this, 'exclude_gifts_from_plan_assignment' ), 10, 4 );
-
-		// Keep first-month giveaways out of Sublium recurring carts (checkout "Renewal Price").
-		add_filter( 'sublium_wcs_subscription_groups', array( $this, 'exclude_gifts_from_subscription_groups' ), 20 );
-
-		// Use the cart line unit price for Sublium recurring totals (not raw variation price).
-		add_filter( 'sublium_wcs_subscription_price', array( $this, 'sync_recurring_price_to_cart' ), 20, 4 );
-		add_filter( 'sublium_wcs_woocommerce_cart_item_total', array( $this, 'filter_recurring_total_display' ), 20, 2 );
+		/*
+		 * IMPORTANT: Do not strip plans / alter recurring groups / override recurring
+		 * prices during cart/checkout. Those hooks were preventing Sublium from
+		 * creating Subscribe & Save subscriptions. Gift cleanup happens AFTER the
+		 * subscription exists, using explicit giveaway markers only.
+		 */
 
 		// After Sublium creates a subscription, remove leftover free gifts.
 		add_action( 'sublium_wcs_subscription_created', array( $this, 'on_subscription_created' ), 20, 1 );
@@ -783,14 +776,70 @@ class Auto_Apply_Cart_Coupon_Sublium {
 	 * @return bool
 	 */
 	private function is_first_month_gift_subscription_item( $item, $gift_product_ids ) {
-		$product_id   = $this->get_item_product_id( $item );
-		$variation_id = $this->get_item_variation_id( $item );
-
-		if ( $this->product_id_in_list( $product_id, $variation_id, $gift_product_ids ) ) {
+		// Prefer explicit gift markers on the subscription item.
+		if ( $this->subscription_item_has_gift_meta( $item ) ) {
 			return true;
 		}
 
-		return $this->subscription_item_has_gift_meta( $item );
+		$meta_free_product = '';
+		if ( is_object( $item ) && method_exists( $item, 'get_meta' ) ) {
+			$meta_free_product = (string) $item->get_meta( 'free_product', true );
+		} elseif ( is_array( $item ) ) {
+			if ( isset( $item['free_product'] ) ) {
+				$meta_free_product = (string) $item['free_product'];
+			} elseif ( isset( $item['item_data']['meta_data'] ) && is_array( $item['item_data']['meta_data'] ) ) {
+				foreach ( $item['item_data']['meta_data'] as $meta ) {
+					$key = is_array( $meta ) && isset( $meta['key'] ) ? $meta['key'] : '';
+					$val = is_array( $meta ) && isset( $meta['value'] ) ? $meta['value'] : '';
+					if ( 'free_product' === $key ) {
+						$meta_free_product = (string) $val;
+						break;
+					}
+				}
+			}
+		}
+
+		if ( 'wt_give_away_product' === $meta_free_product ) {
+			return true;
+		}
+
+		// Only fall back to giveaway product IDs when the line is free ($0).
+		// Never remove a paid Subscribe & Save item just because its ID appears in coupon meta.
+		$product_id   = $this->get_item_product_id( $item );
+		$variation_id = $this->get_item_variation_id( $item );
+		$line_total   = $this->get_subscription_item_total( $item );
+
+		if ( $line_total > 0 ) {
+			return false;
+		}
+
+		return $this->product_id_in_list( $product_id, $variation_id, $gift_product_ids );
+	}
+
+	/**
+	 * Get a subscription item line total when available.
+	 *
+	 * @param mixed $item Subscription item.
+	 * @return float
+	 */
+	private function get_subscription_item_total( $item ) {
+		if ( is_object( $item ) && method_exists( $item, 'get_total' ) ) {
+			return (float) $item->get_total();
+		}
+
+		if ( is_array( $item ) ) {
+			if ( isset( $item['item_data']['total'] ) ) {
+				return (float) $item['item_data']['total'];
+			}
+			if ( isset( $item['total'] ) ) {
+				return (float) $item['total'];
+			}
+			if ( isset( $item['line_total'] ) ) {
+				return (float) $item['line_total'];
+			}
+		}
+
+		return 0.0;
 	}
 
 	/**
