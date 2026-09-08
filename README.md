@@ -128,6 +128,9 @@ Yes. First Month Only keeps free gifts on the parent order only and keeps them o
 
 ## Changelog
 
+### 1.2.6
+- Fixed: Sublium integration is post-creation only; never strips plans or overrides recurring prices during checkout; never removes paid subscription items
+
 ### 1.2.5
 - Fixed: Removed Sublium cart/checkout plan stripping and renewal-price overrides that could block subscription creation; gift cleanup runs after subscription exists only
 
